@@ -1,0 +1,7 @@
+{
+    "plugins": ["prettier-plugin-ejs"],
+    "tabWidth": 4,
+    "useTabs": false,
+    "htmlWhitespaceSensitivity": "ignore",
+    "embeddedLanguageFormatting": "auto"
+}

@@ -1,5 +1,11 @@
 const express = require('express')
 require('express-async-errors')
+const cookieParser = require('cookie-parser')
+const csrf = require('host-csrf')
+const helmet = require('helmet');
+const xss = require('xss-clean');
+const rateLimit = require('express-rate-limit');
+
 
 const app = express()
 
@@ -31,7 +37,21 @@ if (app.get('env') === 'production') {
 
 app.use(session(sessionParams))
 
+app.use(cookieParser(process.env.SESSION_SECRET))
+
 app.use(require('body-parser').urlencoded({ extended: true }))
+
+let csrf_development_mode = true;
+if (app.get("env") === "production") {
+  csrf_development_mode = false;
+  app.set("trust proxy", 1);
+}
+const csrf_options = {
+  development_mode: csrf_development_mode,
+};
+const csrf_middleware = csrf(csrf_options);
+app.use(csrf_middleware);
+
 
 const passport = require("passport");
 const passportInit = require("./passport/passportInit");
@@ -41,6 +61,11 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 app.use(require('connect-flash')())
+
+app.use((req, res, next) => {
+  res.locals._csrf = csrf.token(req, res)
+  next();
+});
 
 app.use(require("./middleware/storeLocals"));
 app.get("/", (req, res) => {
@@ -55,6 +80,15 @@ app.set('view engine', 'ejs')
 const secretWordRouter = require("./routes/secretWord");
 const auth = require("./middleware/auth");
 app.use("/secretWord", auth, secretWordRouter);
+
+app.use(helmet());
+app.use(xss());
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100, // limit each IP to 100 requests per windowMs
+});
+app.use(limiter);
+
 
 app.use((req, res) => {
   res.status(404).send(`That page (${req.url}) was not found.`)

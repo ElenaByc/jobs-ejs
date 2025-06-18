@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+    <%- include("partials/head.ejs") %>
+    <body>
+        <%- include("partials/header.ejs") %>
+
+        <h2>Jobs List</h2>
+        <a href="/jobs/new"><button type="button">Add New Job</button></a>
+
+        <table
+            id="jobs-table"
+            border="1"
+            style="width: 100%; border-collapse: collapse; margin-top: 20px"
+        >
+            <tr id="jobs-table-header" style="background-color: #f2f2f2">
+                <th style="padding: 8px; text-align: left">Company</th>
+                <th style="padding: 8px; text-align: left">Position</th>
+                <th style="padding: 8px; text-align: left">Status</th>
+                <th colspan="2" style="padding: 8px">Actions</th>
+            </tr>
+            <% if (jobs && jobs.length) { %>
+            <% jobs.forEach((job) => { %>
+            <tr>
+                <td style="padding: 8px"><%= job.company %></td>
+                <td style="padding: 8px"><%= job.position %></td>
+                <td style="padding: 8px"><%= job.status %></td>
+                <td style="padding: 8px">
+                    <a href="/jobs/edit/<%= job._id %>">
+                        <button type="button">Edit</button>
+                    </a>
+                </td>
+                <td style="padding: 8px">
+                    <form
+                        method="POST"
+                        action="/jobs/delete/<%= job._id %>"
+                        style="display: inline"
+                    >
+                        <input
+                            type="hidden"
+                            name="_csrf"
+                            value="<%= _csrf %>"
+                        />
+                        <button type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            <% }) %>
+            <% } else { %>
+            <tr>
+                <td colspan="5" style="padding: 8px; text-align: center">
+                    No jobs found.
+                </td>
+            </tr>
+            <% } %>
+        </table>
+
+        <%- include("partials/footer.ejs") %>
+    </body>
+</html>

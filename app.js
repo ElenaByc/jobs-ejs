@@ -1,9 +1,16 @@
 const express = require('express')
+const auth = require('./middleware/auth')
 require('express-async-errors')
+const cookieParser = require('cookie-parser')
+const csrf = require('host-csrf')
+const helmet = require('helmet')
+const xss = require('xss-clean')
+const rateLimit = require('express-rate-limit')
+
 
 const app = express()
-
-require('dotenv').config() // to load the .env file into the process.env object
+app.set('view engine', 'ejs')
+require('dotenv').config()
 const session = require('express-session')
 const MongoDBStore = require('connect-mongodb-session')(session)
 
@@ -30,31 +37,56 @@ if (app.get('env') === 'production') {
 }
 
 app.use(session(sessionParams))
-
+app.use(cookieParser(process.env.SESSION_SECRET))
 app.use(require('body-parser').urlencoded({ extended: true }))
 
-const passport = require("passport");
-const passportInit = require("./passport/passportInit");
+let csrf_development_mode = true
+if (app.get('env') === 'production') {
+  csrf_development_mode = false
+  app.set('trust proxy', 1)
+}
+const csrf_options = {
+  development_mode: csrf_development_mode,
+}
+const csrf_middleware = csrf(csrf_options)
+app.use(csrf_middleware)
 
-passportInit();
-app.use(passport.initialize());
-app.use(passport.session());
+const passport = require('passport')
+const passportInit = require('./passport/passportInit')
+
+passportInit()
+app.use(passport.initialize())
+app.use(passport.session())
 
 app.use(require('connect-flash')())
 
-app.use(require("./middleware/storeLocals"));
-app.get("/", (req, res) => {
-  res.render("index");
-});
-app.use("/sessions", require("./routes/sessionRoutes"));
+app.use((req, res, next) => {
+  res.locals._csrf = csrf.token(req, res)
+  next()
+})
 
-app.set('view engine', 'ejs')
+app.use(require('./middleware/storeLocals'))
+app.get('/', (req, res) => {
+  res.render('index')
+})
+app.use('/sessions', require('./routes/sessionRoutes'))
+
+const jobsRouter = require('./routes/jobs')
+app.use('/jobs', auth, jobsRouter)
 
 
 // secret word handling
-const secretWordRouter = require("./routes/secretWord");
-const auth = require("./middleware/auth");
-app.use("/secretWord", auth, secretWordRouter);
+const secretWordRouter = require('./routes/secretWord')
+app.use('/secretWord', auth, secretWordRouter)
+
+app.use(helmet())
+app.use(xss())
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100, // limit each IP to 100 requests per windowMs
+})
+app.use(limiter)
+
 
 app.use((req, res) => {
   res.status(404).send(`That page (${req.url}) was not found.`)
@@ -69,7 +101,7 @@ const port = process.env.PORT || 3000
 
 const start = async () => {
   try {
-    await require("./db/connect")(process.env.MONGO_URI);
+    await require('./db/connect')(process.env.MONGO_URI)
     app.listen(port, () => console.log(`Server is listening on port ${port}...`))
   } catch (error) {
     console.log(error)
